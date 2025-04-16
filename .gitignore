@@ -1,0 +1,17 @@
+*.env
+*.pyc
+venv
+__pycache__
+.pytest_cache
+
+db.*
+
+
+./docker-compose.yml
+./Dockerfile
+db/
+
+code_2.pyc
+script.py
+user_stories.md
+user_stories.txt
