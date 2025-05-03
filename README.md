@@ -870,13 +870,13 @@ Options:
     "level": "Begineer"
   }
 ---
-  - **Response**:
-  ```json
-  {
-    "id": 1,
-    "level": "Begineer"
-  }
-  ```  ```
+- **Response**:
+```json
+{
+  "id": 1,
+  "level": "Begineer"
+}
+```
 
 #### Delete Expertise Level
 - **Endpoint:** `DELETE /api/expertise-levels/{id}/`
@@ -917,22 +917,22 @@ gunicorn project.wsgi -b 0.0.0.0:8000
 ### Docker Deployment
 
 1. **Copy deployment files**
-   ```bash
+```bash
 cp deploy/dev/* .
 ```
 
 2. **Start containers with database**
-   ```bash
+```bash
 docker-compose -f docker-compose-sql.yml up -d
 ```
    
-   Or without database if configured externally:
-   ```bash
+Or without database if configured externally:
+```bash
 docker-compose -f docker-compose.yml up -d
 ```
 
 3. **Stop containers**
-   ```bash
+```bash
 docker-compose down
 ```
 
@@ -954,7 +954,7 @@ If you encounter errors with OpenAI embeddings, check:
 1. Your API key is valid and has sufficient credits
 2. You're using the correct OpenAI library version
    - For v1.0.0+: Update `embeddings.py` to use the client-based approach
-   - For older versions: Downgrade to v0.28 with `pip install openai==0.28`
+   - For older versions: Downgrade to v0.28 with `pip install openai==1.63.2`
 
 ### pgvector Format Issues
 
