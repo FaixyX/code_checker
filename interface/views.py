@@ -5,11 +5,11 @@ from django.http import HttpResponseRedirect
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.generics import RetrieveUpdateAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView
+from rest_framework.generics import RetrieveUpdateAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView, ListAPIView, RetrieveAPIView
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import MyUser, ProgrammingLanguage, ExpertiseLevel, QuizQuestion, TestCase, UserProgress, UserSubmission, MCQQuestion, TheoryQuestion, Quiz, QuizQuestionResponse
-from .serializers import UserProfileUpdateSerializer, UserProfileRetrieveSerializer, ProgrammingLanguageSerializer, ExpertiseLevelSerializer
+from .models import MyUser, ProgrammingLanguage, ExpertiseLevel, QuizQuestion, TestCase, UserProgress, UserSubmission, MCQQuestion, TheoryQuestion, Quiz, QuizQuestionResponse, Assignment, AssignmentResponse
+from .serializers import UserProfileUpdateSerializer, UserProfileRetrieveSerializer, ProgrammingLanguageSerializer, ExpertiseLevelSerializer, QuizQuestionSerializer, TheoryQuestionSerializer, AssignmentSerializer, AssignmentResponseSerializer
 from rest_framework.decorators import api_view, permission_classes
 import openai
 import subprocess
@@ -27,6 +27,9 @@ import tempfile
 import os
 from .embeddings import is_question_duplicate, store_question_embedding
 from .generation_utils import generate_coding_question, generate_theory_question as generate_theory_question_util, generate_mcq_question as generate_mcq_question_util
+import logging
+
+logger = logging.getLogger(__name__)
 
 class GoogleLoginView(APIView):
     def get(self, request):
@@ -619,87 +622,100 @@ def normalize_output(output):
 @permission_classes([IsAuthenticated])
 def leaderboard(request):
     """
-    Get the top performers based on accuracy or quiz performance
+    Get the top performers based on average Quiz scores and average Assignment scores.
+    Supports time period filtering (all, month, week).
     """
-    leaderboard_type = request.query_params.get('type', 'accuracy')  # Default to accuracy
+    # Removed leaderboard_type parameter
     time_period = request.query_params.get('period', 'all')  # Options: all, month, week
+    limit = int(request.query_params.get('limit', 10)) # Allow specifying result limit, default 10
     
-    # Time filtering
+    # --- Time filtering --- 
     time_filter = Q()
+    now = timezone.now()
     if time_period == 'month':
-        one_month_ago = timezone.now() - timezone.timedelta(days=30)
-        time_filter = Q(created_at__gte=one_month_ago)
+        start_date = now - timezone.timedelta(days=30)
+        time_filter = Q(completed_at__gte=start_date)
     elif time_period == 'week':
-        one_week_ago = timezone.now() - timezone.timedelta(days=7)
-        time_filter = Q(created_at__gte=one_week_ago)
-    
-    if leaderboard_type == 'quiz':
-        # Quiz-based leaderboard
-        # Get all users who have completed quizzes
+        start_date = now - timezone.timedelta(days=7)
+        time_filter = Q(completed_at__gte=start_date)
+    # 'all' time period uses no time filter
+
+    # --- Calculate Quiz Leaderboard --- 
+    quiz_leaderboard_data = []
+    try:
         completed_quizzes = Quiz.objects.filter(
             completed_at__isnull=False
-        ).filter(
-            time_filter
-        ).values('user').annotate(
-            total_score=Sum('score'),
-            quiz_count=Count('id'),
-            avg_score=Avg('score')
-        ).order_by('-avg_score')
+        ).filter(time_filter).values(
+            'user' # Group by user
+        ).annotate(
+            avg_score=Avg('score'),
+            quiz_count=Count('id')
+        ).order_by('-avg_score') # Order by average score descending
         
-        user_scores = {}
+        # Get user details for the top N users
+        top_quiz_users_data = completed_quizzes[:limit]
+        top_quiz_user_ids = [data['user'] for data in top_quiz_users_data]
         
-        # Process each user's quiz data
-        for user_data in completed_quizzes:
-            user_id = user_data['user']
-            
-            try:
-                user = MyUser.objects.get(id=user_id)
-                user_progress = UserProgress.objects.get(user=user)
-                
-                # Calculate accuracy
-                accuracy = 0
-                if user_progress.total_attempts > 0:
-                    accuracy = round((user_progress.correct_answers / user_progress.total_attempts) * 100, 2)
-                
-                user_scores[user_id] = {
-                    'user_id': user_id,
+        # Fetch user objects in bulk
+        user_map = {user.id: user for user in MyUser.objects.filter(id__in=top_quiz_user_ids)}
+        
+        # Build the quiz leaderboard list
+        for data in top_quiz_users_data:
+            user = user_map.get(data['user'])
+            if user:
+                quiz_leaderboard_data.append({
+                    'user_id': user.id,
                     'user_email': user.email,
-                    'total_score': user_data['total_score'],
-                    'quiz_count': user_data['quiz_count'],
-                    'avg_score': round(user_data['avg_score'], 2),
-                    'accuracy': accuracy
-                }
-            except (MyUser.DoesNotExist, UserProgress.DoesNotExist):
-                pass
-        
-        # Convert to list and sort by average score
-        leaderboard_data = list(user_scores.values())
-        leaderboard_data.sort(key=lambda x: (-x['avg_score'], -x['accuracy']))
-        
-        # Limit to top 10
-        leaderboard_data = leaderboard_data[:10]
-        
-    else:
-        # Accuracy-based leaderboard (original implementation)
-        top_users = UserProgress.objects.annotate(
-            calculated_accuracy=F('correct_answers') * 100.0 / F('total_attempts')
-        ).order_by('-calculated_accuracy')[:10]
+                    'average_quiz_score': round(data['avg_score'], 2),
+                    'quiz_count': data['quiz_count']
+                })
+    except Exception as e:
+        logger.error(f"Error calculating quiz leaderboard: {e}")
+        # Optionally return an error indicator or empty list
 
-        leaderboard_data = [
-            {
-                'user_id': user.user.id,
-                'user_email': user.user.email,
-                'accuracy': round(user.calculated_accuracy, 2) if user.total_attempts > 0 else 0,
-                'correct_answers': user.correct_answers,
-                'total_attempts': user.total_attempts
-            }
-            for user in top_users
-        ]
+    # --- Calculate Assignment Leaderboard --- 
+    assignment_leaderboard_data = []
+    try:
+        completed_assignments = Assignment.objects.filter(
+            completed_at__isnull=False
+        ).filter(time_filter).values(
+            'user' # Group by user
+        ).annotate(
+            avg_score=Avg('score'), # Average score per assignment
+            assignment_count=Count('id') 
+        ).order_by('-avg_score') # Order by average score descending
 
+        # Get user details for the top N users
+        top_assignment_users_data = completed_assignments[:limit]
+        top_assignment_user_ids = [data['user'] for data in top_assignment_users_data]
+
+        # Fetch user objects - reuse user_map if possible, or fetch new ones
+        # Avoid refetching if lists overlap significantly - simple approach for now:
+        needed_user_ids = set(top_assignment_user_ids) - set(user_map.keys())
+        if needed_user_ids:
+             additional_users = {user.id: user for user in MyUser.objects.filter(id__in=needed_user_ids)}
+             user_map.update(additional_users)
+
+        # Build the assignment leaderboard list
+        for data in top_assignment_users_data:
+            user = user_map.get(data['user'])
+            if user:
+                assignment_leaderboard_data.append({
+                    'user_id': user.id,
+                    'user_email': user.email,
+                    'average_assignment_score': round(data['avg_score'], 2),
+                    'assignment_count': data['assignment_count']
+                })
+    except Exception as e:
+        logger.error(f"Error calculating assignment leaderboard: {e}")
+        # Optionally return an error indicator or empty list
+
+    # --- Return combined response --- 
     return Response({
-        'leaderboard_type': leaderboard_type,
         'time_period': time_period,
-        'leaderboard': leaderboard_data
+        'limit': limit,
+        'quiz_leaderboard': quiz_leaderboard_data,
+        'assignment_leaderboard': assignment_leaderboard_data
     }, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
@@ -1853,4 +1869,456 @@ def get_quiz_details(request, quiz_id):
         'responses': response_data,
         'is_completed': quiz.completed_at is not None
     }, status=status.HTTP_200_OK)
+
+class GenerateAssignmentView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    NUM_CODING = 8
+    NUM_THEORY = 2
+    MAX_GENERATION_ATTEMPTS = 5 # Max attempts to generate a *single* unique, unseen question
+
+    def post(self, request):
+        user = request.user
+        language_id = request.data.get('language_id')
+        level_id = request.data.get('level_id')
+
+        if not language_id or not level_id:
+            return Response({'error': 'language_id and level_id are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            language = ProgrammingLanguage.objects.get(id=language_id)
+            level = ExpertiseLevel.objects.get(id=level_id)
+        except ProgrammingLanguage.DoesNotExist:
+            return Response({'error': f'ProgrammingLanguage with id {language_id} not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except ExpertiseLevel.DoesNotExist:
+            return Response({'error': f'ExpertiseLevel with id {level_id} not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except ValueError:
+             return Response({'error': 'Invalid ID format for language or level.'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+        # 1. Get IDs of questions previously seen by the user for this language/level
+        seen_responses = QuizQuestionResponse.objects.filter(
+            quiz__user=user,
+            quiz__programming_language=language,
+            quiz__expertise_level=level
+        ).values('question_type', 'question_id')
+
+        seen_coding_ids = {r['question_id'] for r in seen_responses if r['question_type'] == 'coding'}
+        seen_theory_ids = {r['question_id'] for r in seen_responses if r['question_type'] == 'theory'}
+        
+        logger.info(f"User {user.id} has seen {len(seen_coding_ids)} coding and {len(seen_theory_ids)} theory questions for {language.name}/{level.level}.")
+
+        # 2. Fetch existing unseen questions from DB
+        coding_questions_qs = QuizQuestion.objects.filter(
+            programming_language=language,
+            expertise_level=level
+        ).exclude(id__in=seen_coding_ids)
+
+        theory_questions_qs = TheoryQuestion.objects.filter(
+            programming_language=language,
+            expertise_level=level
+        ).exclude(id__in=seen_theory_ids)
+
+        # Use lists to hold the final questions
+        final_coding_questions = list(coding_questions_qs[:self.NUM_CODING])
+        final_theory_questions = list(theory_questions_qs[:self.NUM_THEORY])
+
+        needed_coding = self.NUM_CODING - len(final_coding_questions)
+        needed_theory = self.NUM_THEORY - len(final_theory_questions)
+
+        logger.info(f"Found {len(final_coding_questions)} existing coding questions. Need to generate {needed_coding}.")
+        logger.info(f"Found {len(final_theory_questions)} existing theory questions. Need to generate {needed_theory}.")
+
+        # 3. Generate new questions if needed
+        generation_errors = []
+
+        # Generate Coding Questions
+        for _ in range(needed_coding):
+            generated_question = None
+            for attempt in range(self.MAX_GENERATION_ATTEMPTS):
+                logger.info(f"Attempt {attempt + 1}/{self.MAX_GENERATION_ATTEMPTS} to generate unique unseen coding question for {language.name}/{level.level}")
+                success, result, status_code = generate_coding_question(language, level)
+
+                if success:
+                    # Check if the generated question (even if it's a fallback existing one) has been seen
+                    if result.id not in seen_coding_ids:
+                        generated_question = result
+                        seen_coding_ids.add(result.id) # Add to seen set immediately to avoid duplicates in this assignment
+                        logger.info(f"Successfully generated unique unseen coding question ID: {result.id}")
+                        break # Got a usable question
+                    else:
+                        logger.warning(f"Generated coding question ID {result.id} was already seen by user {user.id}. Retrying generation...")
+                else:
+                    # Generation failed entirely for this attempt
+                    logger.error(f"Failed to generate coding question on attempt {attempt + 1}: Status {status_code}, Response: {result.data if isinstance(result, Response) else 'N/A'}")
+                    # If it's the last attempt, log the final failure
+                    if attempt == self.MAX_GENERATION_ATTEMPTS - 1:
+                         generation_errors.append(f"Failed to generate a coding question after {self.MAX_GENERATION_ATTEMPTS} attempts.")
+
+            if generated_question:
+                final_coding_questions.append(generated_question)
+            else:
+                logger.error(f"Could not generate a unique unseen coding question after {self.MAX_GENERATION_ATTEMPTS} attempts.")
+                # Decide whether to break or continue trying to fill other slots
+                # For now, let's record the error and continue for theory questions
+
+
+        # Generate Theory Questions
+        for _ in range(needed_theory):
+            generated_question = None
+            for attempt in range(self.MAX_GENERATION_ATTEMPTS):
+                logger.info(f"Attempt {attempt + 1}/{self.MAX_GENERATION_ATTEMPTS} to generate unique unseen theory question for {language.name}/{level.level}")
+                # Assuming generate_theory_question_util follows a similar return pattern (success, result, status_code)
+                # We might need to adjust generation_utils if it doesn't
+                success, result, status_code = generate_theory_question_util(language, level)
+
+                if success:
+                    if result.id not in seen_theory_ids:
+                        generated_question = result
+                        seen_theory_ids.add(result.id)
+                        logger.info(f"Successfully generated unique unseen theory question ID: {result.id}")
+                        break
+                    else:
+                        logger.warning(f"Generated theory question ID {result.id} was already seen by user {user.id}. Retrying generation...")
+                else:
+                    logger.error(f"Failed to generate theory question on attempt {attempt + 1}: Status {status_code}, Response: {result.data if isinstance(result, Response) else 'N/A'}")
+                    if attempt == self.MAX_GENERATION_ATTEMPTS - 1:
+                        generation_errors.append(f"Failed to generate a theory question after {self.MAX_GENERATION_ATTEMPTS} attempts.")
+
+            if generated_question:
+                final_theory_questions.append(generated_question)
+            else:
+                logger.error(f"Could not generate a unique unseen theory question after {self.MAX_GENERATION_ATTEMPTS} attempts.")
+
+
+        # 4. Check if we have enough questions finally
+        if len(final_coding_questions) < self.NUM_CODING or len(final_theory_questions) < self.NUM_THEORY:
+            error_message = "Failed to generate the required number of questions."
+            if generation_errors:
+                error_message += " Details: " + "; ".join(generation_errors)
+            # Optionally return partial list or error
+            # For now, returning an error as the requirement was 8+2
+            return Response({
+                'error': error_message,
+                'coding_questions_found': len(final_coding_questions),
+                'theory_questions_found': len(final_theory_questions),
+                # Optionally include the partial list here if desired
+                # 'coding_questions': QuizQuestionSerializer(final_coding_questions, many=True).data,
+                # 'theory_questions': TheoryQuestionSerializer(final_theory_questions, many=True).data,
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR) # Or maybe 404/400? 500 suggests server issue
+
+
+        # 5. Serialize and return the results
+        coding_serializer = QuizQuestionSerializer(final_coding_questions, many=True)
+        theory_serializer = TheoryQuestionSerializer(final_theory_questions, many=True)
+
+        # <<< NEW: Create the Assignment record >>>
+        try:
+            assignment = Assignment.objects.create(
+                user=user,
+                programming_language=language,
+                expertise_level=level,
+                # score and completed_at are set upon submission
+            )
+            logger.info(f"Created Assignment {assignment.id} for user {user.id}.")
+        except Exception as e:
+            logger.error(f"Failed to create Assignment record for user {user.id}: {e}")
+            return Response({
+                'error': 'Failed to create assignment record after generating questions.',
+                'details': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # <<< END NEW >>>
+
+        return Response({
+            'assignment_id': assignment.id, # <<< Include assignment ID
+            'coding_questions': coding_serializer.data,
+            'theory_questions': theory_serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+# <<< NEW ASSIGNMENT SUBMISSION VIEW >>>
+class SubmitAssignmentView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, assignment_id):
+        user = request.user
+
+        try:
+            assignment = Assignment.objects.get(id=assignment_id, user=user)
+        except Assignment.DoesNotExist:
+            return Response({'error': 'Assignment not found or does not belong to the user.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if assignment.completed_at:
+            return Response({'error': 'Assignment has already been submitted and scored.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        submitted_answers = request.data.get('answers') # Expect a list of answer objects
+        if not isinstance(submitted_answers, list) or len(submitted_answers) != assignment.total_questions:
+            return Response({'error': f'Invalid answers format. Expected a list of {assignment.total_questions} answer objects.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        logger.info(f"Processing submission for Assignment {assignment_id} by user {user.id}.")
+
+        correct_count = 0
+        assignment_responses = []
+        evaluation_errors = []
+
+        # Pre-fetch API key once
+        api_key = getattr(settings, 'OPENAI_API_KEY', None)
+        if not api_key:
+             logger.error("OpenAI API key not found during assignment submission.")
+             # Decide if we should proceed without LLM checks or return error
+             # return Response({'error': 'OpenAI API key not configured.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        headers = {
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': 'application/json'
+        }
+
+        # Evaluate each submitted answer
+        for answer_data in submitted_answers:
+            question_type = answer_data.get('question_type')
+            question_id = answer_data.get('question_id')
+            user_response = answer_data.get('answer')
+
+            if not all([question_type, question_id, user_response is not None]): # Allow empty string for answer
+                evaluation_errors.append(f"Skipping invalid answer data: {answer_data}")
+                continue
+
+            is_correct = False
+            feedback = "Evaluation skipped due to error or invalid data."
+
+            try:
+                if question_type == 'coding':
+                    try:
+                        question = QuizQuestion.objects.get(id=question_id,
+                                                            programming_language=assignment.programming_language,
+                                                            expertise_level=assignment.expertise_level)
+                        language_name = assignment.programming_language.name.lower()
+                        
+                        # --- Replicate evaluation logic from submit_quiz_answer --- 
+                        test_cases = TestCase.objects.filter(question=question)
+                        all_passed = True
+                        failed_cases = []
+                        # Run test cases
+                        if test_cases.exists():
+                            for test_case in test_cases:
+                                try:
+                                    if not run_code(user_response, test_case.input_data, test_case.expected_output, language_name):
+                                        all_passed = False
+                                        failed_cases.append({'input': test_case.input_data, 'expected': test_case.expected_output})
+                                except Exception as run_err:
+                                    all_passed = False
+                                    failed_cases.append({'input': test_case.input_data, 'expected': test_case.expected_output, 'error': str(run_err)})
+                        
+                        # LLM Verification (only if API key exists)
+                        if api_key:
+                            problem_statement_match = re.search(r'Question:\s*(.+?)(?=Sample Input:|$)', question.question_text, re.DOTALL)
+                            problem_statement = problem_statement_match.group(1).strip() if problem_statement_match else question.question_text
+
+                            prompt = (
+                                f"Evaluate correctness. Respond ONLY JSON: {{'correct': true/false, 'feedback': 'reason'}}\n"
+                                f"Problem: {problem_statement}\nCode ({language_name}):\n```\n{user_response}\n```\n"
+                                f"Test Results: {'Passed' if all_passed else 'Failed'} ({len(failed_cases)}/{test_cases.count()} failed). Failed: {json.dumps(failed_cases)}"
+                            )
+                            llm_data = {
+                                'model': 'gpt-4o-mini', 
+                                'messages': [{'role': 'user', 'content': prompt}],
+                                'temperature': 0, 'max_tokens': 500,
+                                'response_format': {"type": "json_object"} # Request JSON output
+                            }
+                            
+                            llm_response = requests.post('https://api.openai.com/v1/chat/completions', headers=headers, json=llm_data, timeout=30)
+                            
+                            if llm_response.status_code == 200:
+                                try:
+                                    llm_result = llm_response.json()['choices'][0]['message']['content']
+                                    verification_json = json.loads(llm_result)
+                                    is_correct = verification_json.get('correct', False)
+                                    feedback = verification_json.get('feedback', 'No feedback provided.')
+                                except (json.JSONDecodeError, KeyError, IndexError) as json_err:
+                                    logger.error(f"Error parsing LLM JSON response for coding Q{question_id}: {json_err} - Response: {llm_response.text}")
+                                    is_correct = all_passed # Fallback to test cases
+                                    feedback = f"LLM response parsing error. Test cases {'passed' if all_passed else 'failed'}."
+                            else:
+                                logger.error(f"LLM API error for coding Q{question_id}: {llm_response.status_code} - {llm_response.text}")
+                                is_correct = all_passed # Fallback to test cases
+                                feedback = f"LLM API error. Test cases {'passed' if all_passed else 'failed'}."
+                        else: # No API Key
+                            is_correct = all_passed
+                            feedback = f"Evaluation based on test cases only (LLM disabled). Test cases {'passed' if all_passed else 'failed'}."
+                        # --- End evaluation logic --- 
+
+                    except QuizQuestion.DoesNotExist:
+                        feedback = "Coding question not found."
+                        evaluation_errors.append(feedback)
+                    except Exception as eval_err:
+                        logger.error(f"Error evaluating coding Q{question_id} for assignment {assignment_id}: {eval_err}", exc_info=True)
+                        feedback = f"Error during evaluation: {eval_err}"
+                        evaluation_errors.append(feedback)
+
+                elif question_type == 'theory':
+                    try:
+                        question = TheoryQuestion.objects.get(id=question_id,
+                                                               programming_language=assignment.programming_language,
+                                                               expertise_level=assignment.expertise_level)
+                        
+                        # LLM Verification (only if API key exists)
+                        if api_key:
+                            prompt = (
+                                f"Evaluate correctness. Respond ONLY JSON: {{'correct': true/false, 'feedback': 'reason'}}\n"
+                                f"Question: {question.question_text}\nAnswer: {user_response}"
+                            )
+                            llm_data = {
+                                'model': 'gpt-4o-mini', 
+                                'messages': [{'role': 'user', 'content': prompt}],
+                                'temperature': 0.5, 'max_tokens': 500,
+                                'response_format': {"type": "json_object"}
+                            }
+                            
+                            llm_response = requests.post('https://api.openai.com/v1/chat/completions', headers=headers, json=llm_data, timeout=30)
+                            
+                            if llm_response.status_code == 200:
+                                try:
+                                    llm_result = llm_response.json()['choices'][0]['message']['content']
+                                    verification_json = json.loads(llm_result)
+                                    is_correct = verification_json.get('correct', False)
+                                    feedback = verification_json.get('feedback', 'No feedback provided.')
+                                except (json.JSONDecodeError, KeyError, IndexError) as json_err:
+                                    logger.error(f"Error parsing LLM JSON response for theory Q{question_id}: {json_err} - Response: {llm_response.text}")
+                                    feedback = "LLM response parsing error."
+                                    is_correct = False # Cannot determine correctness
+                            else:
+                                logger.error(f"LLM API error for theory Q{question_id}: {llm_response.status_code} - {llm_response.text}")
+                                feedback = "LLM API error during evaluation."
+                                is_correct = False # Cannot determine correctness
+                        else: # No API Key
+                            feedback = "Cannot evaluate theory question without LLM API key."
+                            is_correct = False # Cannot determine correctness without LLM
+                            evaluation_errors.append(f"Skipped theory Q{question_id} evaluation (no API key).")
+                    
+                    except TheoryQuestion.DoesNotExist:
+                        feedback = "Theory question not found."
+                        evaluation_errors.append(feedback)
+                    except Exception as eval_err:
+                        logger.error(f"Error evaluating theory Q{question_id} for assignment {assignment_id}: {eval_err}", exc_info=True)
+                        feedback = f"Error during evaluation: {eval_err}"
+                        evaluation_errors.append(feedback)
+
+                else:
+                    feedback = f"Invalid question type '{question_type}' provided."
+                    evaluation_errors.append(feedback)
+                    continue # Skip saving response for invalid type
+            
+            except Exception as outer_eval_err: # Catch any unexpected errors in the loop
+                 logger.error(f"Unexpected error processing answer for Q{question_id} (type {question_type}) in assignment {assignment_id}: {outer_eval_err}", exc_info=True)
+                 feedback = f"Unexpected error during processing: {outer_eval_err}"
+                 evaluation_errors.append(feedback)
+                 # Continue to next answer
+
+            # Store the response result
+            assignment_responses.append(AssignmentResponse(
+                assignment=assignment,
+                question_type=question_type,
+                question_id=question_id,
+                user_response=user_response,
+                is_correct=is_correct
+            ))
+            if is_correct:
+                correct_count += 1
+        
+        # Bulk create responses for efficiency
+        try:
+            AssignmentResponse.objects.bulk_create(assignment_responses)
+            logger.info(f"Saved {len(assignment_responses)} responses for Assignment {assignment_id}.")
+        except Exception as bulk_err:
+            logger.error(f"Failed to bulk save responses for Assignment {assignment_id}: {bulk_err}")
+            # Individual saving fallback could be added here if critical
+            return Response({'error': 'Failed to save assignment responses.', 'details': str(bulk_err)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Update Assignment score and completion time
+        assignment.score = correct_count
+        assignment.completed_at = timezone.now()
+        assignment.save()
+        logger.info(f"Assignment {assignment_id} completed with score {correct_count}/{assignment.total_questions}.")
+
+        # Update UserProgress
+        try:
+            user_progress, created = UserProgress.objects.get_or_create(user=user)
+            # Treat assignment submission as contributing 10 attempts
+            user_progress.total_attempts = F('total_attempts') + assignment.total_questions 
+            user_progress.correct_answers = F('correct_answers') + correct_count
+            # Save first to get updated counts before calculating accuracy
+            user_progress.save()
+            user_progress.refresh_from_db() # Get the updated values
+            # Recalculate accuracy
+            if user_progress.total_attempts > 0:
+                 user_progress.accuracy = (user_progress.correct_answers / user_progress.total_attempts) * 100.0
+            else:
+                 user_progress.accuracy = 0.0
+            # Note: We are not updating average_time_per_question here, as assignments are submitted bulk
+            user_progress.save() 
+            logger.info(f"Updated UserProgress for user {user.id}. New accuracy: {user_progress.accuracy:.2f}%")
+        except Exception as progress_err:
+            logger.error(f"Failed to update UserProgress for user {user.id} after assignment {assignment_id}: {progress_err}")
+            # Log error but proceed, scoring the assignment is more critical
+
+        # Prepare response
+        final_results = [{
+            'question_id': resp.question_id,
+            'question_type': resp.question_type,
+            'is_correct': resp.is_correct,
+            # Add feedback here if we stored it per response (currently not)
+        } for resp in assignment_responses]
+
+        return Response({
+            'assignment_id': assignment.id,
+            'score': assignment.score,
+            'total_questions': assignment.total_questions,
+            'results': final_results,
+            'evaluation_warnings': evaluation_errors # Return any non-critical errors
+        }, status=status.HTTP_200_OK)
+
+# <<< END NEW ASSIGNMENT SUBMISSION VIEW >>>
+
+# <<< NEW ASSIGNMENT RETRIEVAL VIEWS >>>
+
+class AssignmentListView(ListAPIView):
+    """Lists all assignments (consider adding IsAdminUser permission later)."""
+    queryset = Assignment.objects.select_related(
+        'user', 'programming_language', 'expertise_level'
+    ).order_by('-created_at')
+    serializer_class = AssignmentSerializer
+    permission_classes = [IsAuthenticated] # Start with authenticated users, can restrict to admin later
+    # Note: This serializer includes responses, which might be heavy for a list view.
+    # Consider creating a simpler AssignmentListSerializer if performance is an issue.
+
+class MyAssignmentListView(ListAPIView):
+    """Lists assignments belonging to the currently authenticated user."""
+    serializer_class = AssignmentSerializer # Same serializer, but queryset is filtered
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        return Assignment.objects.filter(user=user).select_related(
+            'user', 'programming_language', 'expertise_level'
+        ).order_by('-created_at')
+    # Again, consider a simpler list serializer if nested responses are too much data.
+
+class AssignmentDetailView(RetrieveAPIView):
+    """Retrieves details of a specific assignment, including responses."""
+    queryset = Assignment.objects.select_related(
+        'user', 'programming_language', 'expertise_level'
+    ).prefetch_related(
+        'assignmentresponse_set' # Fetch responses efficiently
+    )
+    serializer_class = AssignmentSerializer
+    permission_classes = [IsAuthenticated] # User can only view their own assignments (enforced by lookup field/queryset)
+
+    def get_queryset(self):
+        # Ensure users can only retrieve their own assignments by detail view
+        user = self.request.user
+        return super().get_queryset().filter(user=user)
+    
+    # The lookup field is 'pk' by default, which corresponds to the assignment ID in the URL
+
+# <<< END NEW ASSIGNMENT RETRIEVAL VIEWS >>>
 

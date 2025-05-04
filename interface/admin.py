@@ -3,7 +3,8 @@ from django.contrib.auth import get_user_model
 from authemail.admin import EmailUserAdmin
 from .models import (
 	ProgrammingLanguage, ExpertiseLevel, QuizQuestion, UserSubmission, 
-	TestCase, UserProgress, MCQQuestion, TheoryQuestion, Quiz, QuizQuestionResponse, QuestionEmbedding
+	TestCase, UserProgress, MCQQuestion, TheoryQuestion, Quiz, QuizQuestionResponse, QuestionEmbedding,
+	Assignment, AssignmentResponse 
 )
 
 class MyUserAdmin(EmailUserAdmin):
@@ -121,6 +122,22 @@ class QuizQuestionResponseAdmin(admin.ModelAdmin):
 	ordering = ('-created_at',)
 	date_hierarchy = 'created_at'
 
+class AssignmentAdmin(admin.ModelAdmin):
+	list_display = ('id', 'user', 'programming_language', 'expertise_level', 'score', 'total_questions', 'created_at', 'completed_at')
+	list_filter = ('programming_language', 'expertise_level', 'created_at', 'completed_at')
+	search_fields = ('user__email', 'id')
+	readonly_fields = ('created_at', 'completed_at', 'score', 'total_questions')
+	date_hierarchy = 'created_at'
+	ordering = ('-created_at',)
+
+class AssignmentResponseAdmin(admin.ModelAdmin):
+	list_display = ('id', 'assignment', 'question_type', 'question_id', 'is_correct', 'created_at')
+	list_filter = ('is_correct', 'question_type', 'assignment__programming_language', 'assignment__expertise_level')
+	search_fields = ('user_response', 'assignment__user__email', 'assignment__id')
+	readonly_fields = ('created_at',)
+	date_hierarchy = 'created_at'
+	ordering = ('-created_at',)
+
 admin.site.unregister(get_user_model())
 admin.site.register(get_user_model(), MyUserAdmin)
 admin.site.register(ProgrammingLanguage, ProgrammingLanguageAdmin)
@@ -134,3 +151,5 @@ admin.site.register(TheoryQuestion, TheoryQuestionAdmin)
 admin.site.register(Quiz, QuizAdmin)
 admin.site.register(QuizQuestionResponse, QuizQuestionResponseAdmin)
 admin.site.register(QuestionEmbedding, QuestionEmbeddingAdmin)
+admin.site.register(Assignment, AssignmentAdmin)
+admin.site.register(AssignmentResponse, AssignmentResponseAdmin)

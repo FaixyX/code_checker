@@ -12,7 +12,9 @@ from .views import (UserProfileUpdateView, leaderboard, compare_user_progress,
                     get_next_quiz_question, submit_quiz_answer, complete_quiz, 
                     get_quiz_history, get_quiz_details, user_submissions, quiz_leaderboard,
                     ProgrammingLanguageListCreateView, ProgrammingLanguageDetailView,
-                    ExpertiseLevelListCreateView, ExpertiseLevelDetailView)
+                    ExpertiseLevelListCreateView, ExpertiseLevelDetailView,
+                    GenerateAssignmentView, SubmitAssignmentView,
+                    AssignmentListView, MyAssignmentListView, AssignmentDetailView)
 
 urlpatterns = [
     path("token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
@@ -56,4 +58,13 @@ urlpatterns = [
     path('quiz-leaderboard/', quiz_leaderboard, name='quiz_leaderboard'),
     path('user-submissions/', user_submissions, name='my_submissions'),
     path('user-submissions/<int:user_id>/', user_submissions, name='user_submissions'),
+
+    # New path for assignment generation
+    path('assignments/generate/', GenerateAssignmentView.as_view(), name='generate-assignment'),
+    # New path for assignment submission
+    path('assignments/<int:assignment_id>/submit/', SubmitAssignmentView.as_view(), name='submit-assignment'),
+    # New retrieval paths
+    path('assignments/', AssignmentListView.as_view(), name='assignment-list-all'), # Potentially admin only
+    path('assignments/my/', MyAssignmentListView.as_view(), name='assignment-list-my'),
+    path('assignments/<int:pk>/', AssignmentDetailView.as_view(), name='assignment-detail'), # pk is assignment_id
 ]

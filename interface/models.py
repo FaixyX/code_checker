@@ -164,3 +164,52 @@ class QuestionEmbedding(models.Model):
 	
 	def __str__(self):
 		return f"{self.question_type} Embedding for Question #{self.question_id}"
+
+
+# <<< NEW ASSIGNMENT MODELS >>>
+
+class Assignment(models.Model):
+	"""Represents a specific assignment instance given to a user."""
+	user = models.ForeignKey(MyUser, on_delete=models.CASCADE)
+	programming_language = models.ForeignKey(ProgrammingLanguage, on_delete=models.CASCADE)
+	expertise_level = models.ForeignKey(ExpertiseLevel, on_delete=models.CASCADE)
+	created_at = models.DateTimeField(auto_now_add=True)
+	completed_at = models.DateTimeField(null=True, blank=True)
+	score = models.IntegerField(default=0, help_text="Number of correct answers")
+	total_questions = models.IntegerField(default=10, help_text="Should always be 10 (8 coding + 2 theory)")
+
+	def __str__(self):
+		status = "Completed" if self.completed_at else "In Progress"
+		return f"Assignment for {self.user.email} - {self.programming_language.name} ({self.expertise_level.level}) - Status: {status}"
+
+	def calculate_score(self):
+		"""Calculates and updates the score based on responses."""
+		correct_answers = self.assignmentresponse_set.filter(is_correct=True).count()
+		self.score = correct_answers
+		# Ensure total_questions reflects actual responses if needed, though it should be fixed at 10
+		# self.total_questions = self.assignmentresponse_set.count() 
+		self.save()
+		return self.score
+
+class AssignmentResponse(models.Model):
+	"""Stores a user's response to a single question within an assignment."""
+	QUESTION_TYPE_CHOICES = (
+		('coding', 'Coding Question'),
+		('theory', 'Theory Question'),
+	)
+	
+	assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE)
+	question_type = models.CharField(max_length=10, choices=QUESTION_TYPE_CHOICES)
+	question_id = models.IntegerField()  # ID of the question in its respective table (QuizQuestion or TheoryQuestion)
+	user_response = models.TextField(blank=True)  # User's answer or code
+	is_correct = models.BooleanField(default=False)
+	created_at = models.DateTimeField(auto_now_add=True)
+
+	class Meta:
+		unique_together = ('assignment', 'question_type', 'question_id') # Prevent duplicate responses for the same question in one assignment
+		ordering = ['created_at']
+
+	def __str__(self):
+		return f"Response for Assignment #{self.assignment.id} - {self.question_type} Question #{self.question_id}"
+
+# <<< END NEW ASSIGNMENT MODELS >>>

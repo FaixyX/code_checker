@@ -570,57 +570,69 @@ Options:
   - **Response**:
     ```json
     {
-      "leaderboard": [
-          {
+    "leaderboard": [
+        {
             "quiz_id": 1,
             "user_id": 2,
             "user_email": "dev@gmail.com",
-            "language": "PHP",
+            "language": "C#",
             "level": "Easy",
             "score": 5,
-            "correct_answers": 5,
-            "total_questions": 8,
-            "completion_time": 732.897736,
+            "correct_answers": 0,
+            "total_questions": 0,
+            "completion_time": 0,
             "completed_at": "2025-04-16T16:51:55.979099Z"
-          },
-          {
+        },
+        {
             "quiz_id": 8,
             "user_id": 2,
             "user_email": "dev@gmail.com",
             "language": "Python",
             "level": "Easy",
             "score": 5,
-            "correct_answers": 5,
-            "total_questions": 20,
-            "completion_time": 668.840236,
+            "correct_answers": 0,
+            "total_questions": 0,
+            "completion_time": 0,
             "completed_at": "2025-04-16T18:05:53.717722Z"
-          },
-          {
+        },
+        {
             "quiz_id": 9,
             "user_id": 2,
             "user_email": "dev@gmail.com",
             "language": "Python",
             "level": "Easy",
             "score": 1,
-            "correct_answers": 1,
-            "total_questions": 5,
-            "completion_time": 133.580264,
+            "correct_answers": 0,
+            "total_questions": 0,
+            "completion_time": 0,
             "completed_at": "2025-04-16T18:14:28.859032Z"
-          },
-          {
+        },
+        {
             "quiz_id": 12,
             "user_id": 1,
             "user_email": "admin@gmail.com",
-            "language": "PHP",
+            "language": "C#",
             "level": "Intermediate",
             "score": 0,
             "correct_answers": 0,
-            "total_questions": 1,
-            "completion_time": 0.0,
+            "total_questions": 0,
+            "completion_time": 0,
             "completed_at": "2025-04-17T10:33:43.074715Z"
-          }
-      ]
-  }
+        },
+        {
+            "quiz_id": 15,
+            "user_id": 1,
+            "user_email": "admin@gmail.com",
+            "language": "Python",
+            "level": "Easy",
+            "score": 0,
+            "correct_answers": 0,
+            "total_questions": 0,
+            "completion_time": 0,
+            "completed_at": "2025-04-24T17:14:14.381745Z"
+        }
+    ]
+  } 
     ```
   - **Authentication**: JWT token required
 
@@ -877,7 +889,560 @@ Options:
   "level": "Begineer"
 }
 ```
-
+#### Generate Assignment
+- **Endpoint:** `POST /api/assignments/generate/`
+- **Description:** Generate Assignment
+- **Request Body:**
+  ```json
+  {
+    "language_id": 1,
+    "level_id": 1    
+  }
+---
+- **Response**:
+```json
+{
+    "assignment_id": 2,
+     "coding_questions": [
+        {
+            "id": 55,
+            "question_text":"Question",
+            "programming_language": 1,
+            "expertise_level": 1,
+            "created_at": "2025-05-03T20:52:04.275685Z"
+        },
+        .....
+      ],
+      "theory_questions": [
+        {
+            "id": 39,
+            "question_text": "What is the purpose of the `using` statement in C#, and how does it help in resource management?",
+            "programming_language": 1,
+            "expertise_level": 1,
+            "created_at": "2025-05-03T20:53:19.122515Z"
+        },
+        ....
+      ]
+}
+            
+```
+#### Submit Assignment
+- **Endpoint:** `POST /api/assignments/assignment_id/submit/`
+- **Description:** Submit Assingment by ID
+- **Request Body:**
+  ```json
+   {
+      "answers": [
+        {
+          "question_type": "coding",
+          "question_id": 55,
+          "answer": "<your code string>"
+        },
+        {
+          "question_type": "coding",
+          "question_id": 56,
+          "answer": "<your theory answer text>"
+        },
+        {
+          "question_type": "coding",
+          "question_id": 57,
+          "answer": "<your theory answer text>"
+        },
+        {
+          "question_type": "coding",
+          "question_id": 58,
+          "answer": "<your theory answer text>"
+        },
+        {
+          "question_type": "coding",
+          "question_id": 59,
+          "answer": "<your theory answer text>"
+        },
+        {
+          "question_type": "coding",
+          "question_id": 60,
+          "answer": "<your theory answer text>"
+        },
+        {
+          "question_type": "coding",
+          "question_id": 61,
+          "answer": "<your theory answer text>"
+        },
+        {
+          "question_type": "coding",
+          "question_id": 62,
+          "answer": "<your theory answer text>"
+        },
+        {
+          "question_type": "theory",
+          "question_id": 39,
+          "answer": "The `using` statement in C# is used to ensure that an object implementing the `IDisposable` interface is automatically disposed of when it's no longer needed. It helps in resource management by guaranteeing that the `Dispose()` method is called, releasing unmanaged resources like file handles, database connections, or network streams as soon as they go out of scope—either normally or due to an exception. This prevents resource leaks and promotes clean, efficient code without requiring manual cleanup in `try...finally` blocks."
+        },
+        {
+          "question_type": "theory",
+          "question_id": 40,
+          "answer": "The using statement in C# ensures automatic disposal of objects that implement IDisposable, guaranteeing deterministic cleanup of unmanaged resources (e.g., file handles, database connections). It simplifies resource management by calling Dispose() implicitly when exiting the block, even during exceptions, avoiding leaks. Variables declared in a using block are scoped to it, preventing misuse afterward. Available as a concise statement (C# 8.0+) or traditional block syntax, it streamlines code while enforcing safe, efficient resource handling."
+        }
+      ]
+    }
+---
+- **Response**:
+```json
+{
+    "assignment_id": 1,
+    "score": 2,
+    "total_questions": 10,
+    "results": [
+        {
+            "question_id": 55,
+            "question_type": "coding",
+            "is_correct": false
+        },
+        {
+            "question_id": 56,
+            "question_type": "coding",
+            "is_correct": false
+        },
+        {
+            "question_id": 57,
+            "question_type": "coding",
+            "is_correct": false
+        },
+        {
+            "question_id": 58,
+            "question_type": "coding",
+            "is_correct": false
+        },
+        {
+            "question_id": 59,
+            "question_type": "coding",
+            "is_correct": false
+        },
+        {
+            "question_id": 60,
+            "question_type": "coding",
+            "is_correct": false
+        },
+        {
+            "question_id": 61,
+            "question_type": "coding",
+            "is_correct": false
+        },
+        {
+            "question_id": 62,
+            "question_type": "coding",
+            "is_correct": false
+        },
+        {
+            "question_id": 39,
+            "question_type": "theory",
+            "is_correct": true
+        },
+        {
+            "question_id": 40,
+            "question_type": "theory",
+            "is_correct": true
+        }
+    ],
+    "evaluation_warnings": []
+}
+```
+#### Get All Assignment 
+- **Endpoint:** `GET /api/assignments/`
+- **Description:** Get all Assignments.
+---
+- **Response**:
+```json
+{
+    "count": 2,
+    "next": null,
+    "previous": null,
+    "results": [
+        {
+            "id": 2,
+            "user": {
+                "id": 1,
+                "last_login": "2025-05-03T21:53:08.836757Z",
+                "is_superuser": true,
+                "first_name": "admin",
+                "last_name": "admin",
+                "email": "admin@gmail.com",
+                "is_staff": true,
+                "is_active": true,
+                "date_joined": "2025-04-10T20:47:32.619579Z",
+                "is_verified": true,
+                "groups": [],
+                "user_permissions": []
+            },
+            "programming_language": {
+                "id": 1,
+                "name": "C#"
+            },
+            "expertise_level": {
+                "id": 1,
+                "level": "Easy"
+            },
+            "created_at": "2025-05-03T22:38:36.905797Z",
+            "completed_at": null,
+            "score": 0,
+            "total_questions": 10,
+            "responses": []
+        },
+        {
+            "id": 1,
+            "user": {
+                "id": 1,
+                "last_login": "2025-05-03T21:53:08.836757Z",
+                "is_superuser": true,
+                "first_name": "admin",
+                "last_name": "admin",
+                "email": "admin@gmail.com",
+                "is_staff": true,
+                "is_active": true,
+                "date_joined": "2025-04-10T20:47:32.619579Z",
+                "is_verified": true,
+                "groups": [],
+                "user_permissions": []
+            },
+            "programming_language": {
+                "id": 1,
+                "name": "C#"
+            },
+            "expertise_level": {
+                "id": 1,
+                "level": "Easy"
+            },
+            "created_at": "2025-05-03T21:27:56.339034Z",
+            "completed_at": "2025-05-03T21:42:32.136650Z",
+            "score": 2,
+            "total_questions": 10,
+            "responses": [
+                {
+                    "id": 1,
+                    "question_type": "coding",
+                    "question_id": 55,
+                    "user_response": "<your code string>",
+                    "is_correct": false,
+                    "created_at": "2025-05-03T21:42:32.132651Z"
+                },
+                {
+                    "id": 2,
+                    "question_type": "coding",
+                    "question_id": 56,
+                    "user_response": "<your theory answer text>",
+                    "is_correct": false,
+                    "created_at": "2025-05-03T21:42:32.132651Z"
+                },
+                {
+                    "id": 3,
+                    "question_type": "coding",
+                    "question_id": 57,
+                    "user_response": "<your theory answer text>",
+                    "is_correct": false,
+                    "created_at": "2025-05-03T21:42:32.132651Z"
+                },
+                {
+                    "id": 4,
+                    "question_type": "coding",
+                    "question_id": 58,
+                    "user_response": "<your theory answer text>",
+                    "is_correct": false,
+                    "created_at": "2025-05-03T21:42:32.132651Z"
+                },
+                {
+                    "id": 5,
+                    "question_type": "coding",
+                    "question_id": 59,
+                    "user_response": "<your theory answer text>",
+                    "is_correct": false,
+                    "created_at": "2025-05-03T21:42:32.132651Z"
+                },
+                {
+                    "id": 6,
+                    "question_type": "coding",
+                    "question_id": 60,
+                    "user_response": "<your theory answer text>",
+                    "is_correct": false,
+                    "created_at": "2025-05-03T21:42:32.132651Z"
+                },
+                {
+                    "id": 7,
+                    "question_type": "coding",
+                    "question_id": 61,
+                    "user_response": "<your theory answer text>",
+                    "is_correct": false,
+                    "created_at": "2025-05-03T21:42:32.132651Z"
+                },
+                {
+                    "id": 8,
+                    "question_type": "coding",
+                    "question_id": 62,
+                    "user_response": "<your theory answer text>",
+                    "is_correct": false,
+                    "created_at": "2025-05-03T21:42:32.132651Z"
+                },
+                {
+                    "id": 9,
+                    "question_type": "theory",
+                    "question_id": 39,
+                    "user_response": "The `using` statement in C# is used to ensure that an object implementing the `IDisposable` interface is automatically disposed of when it's no longer needed. It helps in resource management by guaranteeing that the `Dispose()` method is called, releasing unmanaged resources like file handles, database connections, or network streams as soon as they go out of scope—either normally or due to an exception. This prevents resource leaks and promotes clean, efficient code without requiring manual cleanup in `try...finally` blocks.",
+                    "is_correct": true,
+                    "created_at": "2025-05-03T21:42:32.132651Z"
+                },
+                {
+                    "id": 10,
+                    "question_type": "theory",
+                    "question_id": 40,
+                    "user_response": "The using statement in C# ensures automatic disposal of objects that implement IDisposable, guaranteeing deterministic cleanup of unmanaged resources (e.g., file handles, database connections). It simplifies resource management by calling Dispose() implicitly when exiting the block, even during exceptions, avoiding leaks. Variables declared in a using block are scoped to it, preventing misuse afterward. Available as a concise statement (C# 8.0+) or traditional block syntax, it streamlines code while enforcing safe, efficient resource handling.",
+                    "is_correct": true,
+                    "created_at": "2025-05-03T21:42:32.132651Z"
+                }
+            ]
+        }
+    ]
+}
+```
+#### Get Assignment By User
+- **Endpoint:** `GET /api/assignments/my/`
+- **Description:** Get assignments of the current user.
+- **Response**:
+```json
+{
+    "count": 1,
+    "next": null,
+    "previous": null,
+    "results": [
+        {
+            "id": 1,
+            "user": {
+                "id": 1,
+                "last_login": "2025-05-03T21:53:08.836757Z",
+                "is_superuser": true,
+                "first_name": "admin",
+                "last_name": "admin",
+                "email": "admin@gmail.com",
+                "is_staff": true,
+                "is_active": true,
+                "date_joined": "2025-04-10T20:47:32.619579Z",
+                "is_verified": true,
+                "groups": [],
+                "user_permissions": []
+            },
+            "programming_language": {
+                "id": 1,
+                "name": "C#"
+            },
+            "expertise_level": {
+                "id": 1,
+                "level": "Easy"
+            },
+            "created_at": "2025-05-03T21:27:56.339034Z",
+            "completed_at": "2025-05-03T21:42:32.136650Z",
+            "score": 2,
+            "total_questions": 10,
+            "responses": [
+                {
+                    "id": 1,
+                    "question_type": "coding",
+                    "question_id": 55,
+                    "user_response": "<your code string>",
+                    "is_correct": false,
+                    "created_at": "2025-05-03T21:42:32.132651Z"
+                },
+                {
+                    "id": 2,
+                    "question_type": "coding",
+                    "question_id": 56,
+                    "user_response": "<your theory answer text>",
+                    "is_correct": false,
+                    "created_at": "2025-05-03T21:42:32.132651Z"
+                },
+                {
+                    "id": 3,
+                    "question_type": "coding",
+                    "question_id": 57,
+                    "user_response": "<your theory answer text>",
+                    "is_correct": false,
+                    "created_at": "2025-05-03T21:42:32.132651Z"
+                },
+                {
+                    "id": 4,
+                    "question_type": "coding",
+                    "question_id": 58,
+                    "user_response": "<your theory answer text>",
+                    "is_correct": false,
+                    "created_at": "2025-05-03T21:42:32.132651Z"
+                },
+                {
+                    "id": 5,
+                    "question_type": "coding",
+                    "question_id": 59,
+                    "user_response": "<your theory answer text>",
+                    "is_correct": false,
+                    "created_at": "2025-05-03T21:42:32.132651Z"
+                },
+                {
+                    "id": 6,
+                    "question_type": "coding",
+                    "question_id": 60,
+                    "user_response": "<your theory answer text>",
+                    "is_correct": false,
+                    "created_at": "2025-05-03T21:42:32.132651Z"
+                },
+                {
+                    "id": 7,
+                    "question_type": "coding",
+                    "question_id": 61,
+                    "user_response": "<your theory answer text>",
+                    "is_correct": false,
+                    "created_at": "2025-05-03T21:42:32.132651Z"
+                },
+                {
+                    "id": 8,
+                    "question_type": "coding",
+                    "question_id": 62,
+                    "user_response": "<your theory answer text>",
+                    "is_correct": false,
+                    "created_at": "2025-05-03T21:42:32.132651Z"
+                },
+                {
+                    "id": 9,
+                    "question_type": "theory",
+                    "question_id": 39,
+                    "user_response": "The `using` statement in C# is used to ensure that an object implementing the `IDisposable` interface is automatically disposed of when it's no longer needed. It helps in resource management by guaranteeing that the `Dispose()` method is called, releasing unmanaged resources like file handles, database connections, or network streams as soon as they go out of scope—either normally or due to an exception. This prevents resource leaks and promotes clean, efficient code without requiring manual cleanup in `try...finally` blocks.",
+                    "is_correct": true,
+                    "created_at": "2025-05-03T21:42:32.132651Z"
+                },
+                {
+                    "id": 10,
+                    "question_type": "theory",
+                    "question_id": 40,
+                    "user_response": "The using statement in C# ensures automatic disposal of objects that implement IDisposable, guaranteeing deterministic cleanup of unmanaged resources (e.g., file handles, database connections). It simplifies resource management by calling Dispose() implicitly when exiting the block, even during exceptions, avoiding leaks. Variables declared in a using block are scoped to it, preventing misuse afterward. Available as a concise statement (C# 8.0+) or traditional block syntax, it streamlines code while enforcing safe, efficient resource handling.",
+                    "is_correct": true,
+                    "created_at": "2025-05-03T21:42:32.132651Z"
+                }
+            ]
+        }
+    ]
+}
+```
+#### Get Assignment by ID
+- **Endpoint:** `GET /api/assignments/1/`
+- **Description:** Get Assignment scores by ID.
+- **Response**:
+```json
+{
+    "id": 1,
+    "user": {
+        "id": 1,
+        "last_login": "2025-05-03T21:53:08.836757Z",
+        "is_superuser": true,
+        "first_name": "admin",
+        "last_name": "admin",
+        "email": "admin@gmail.com",
+        "is_staff": true,
+        "is_active": true,
+        "date_joined": "2025-04-10T20:47:32.619579Z",
+        "is_verified": true,
+        "groups": [],
+        "user_permissions": []
+    },
+    "programming_language": {
+        "id": 1,
+        "name": "C#"
+    },
+    "expertise_level": {
+        "id": 1,
+        "level": "Easy"
+    },
+    "created_at": "2025-05-03T21:27:56.339034Z",
+    "completed_at": "2025-05-03T21:42:32.136650Z",
+    "score": 2,
+    "total_questions": 10,
+    "responses": [
+        {
+            "id": 1,
+            "question_type": "coding",
+            "question_id": 55,
+            "user_response": "<your code string>",
+            "is_correct": false,
+            "created_at": "2025-05-03T21:42:32.132651Z"
+        },
+        {
+            "id": 2,
+            "question_type": "coding",
+            "question_id": 56,
+            "user_response": "<your theory answer text>",
+            "is_correct": false,
+            "created_at": "2025-05-03T21:42:32.132651Z"
+        },
+        {
+            "id": 3,
+            "question_type": "coding",
+            "question_id": 57,
+            "user_response": "<your theory answer text>",
+            "is_correct": false,
+            "created_at": "2025-05-03T21:42:32.132651Z"
+        },
+        {
+            "id": 4,
+            "question_type": "coding",
+            "question_id": 58,
+            "user_response": "<your theory answer text>",
+            "is_correct": false,
+            "created_at": "2025-05-03T21:42:32.132651Z"
+        },
+        {
+            "id": 5,
+            "question_type": "coding",
+            "question_id": 59,
+            "user_response": "<your theory answer text>",
+            "is_correct": false,
+            "created_at": "2025-05-03T21:42:32.132651Z"
+        },
+        {
+            "id": 6,
+            "question_type": "coding",
+            "question_id": 60,
+            "user_response": "<your theory answer text>",
+            "is_correct": false,
+            "created_at": "2025-05-03T21:42:32.132651Z"
+        },
+        {
+            "id": 7,
+            "question_type": "coding",
+            "question_id": 61,
+            "user_response": "<your theory answer text>",
+            "is_correct": false,
+            "created_at": "2025-05-03T21:42:32.132651Z"
+        },
+        {
+            "id": 8,
+            "question_type": "coding",
+            "question_id": 62,
+            "user_response": "<your theory answer text>",
+            "is_correct": false,
+            "created_at": "2025-05-03T21:42:32.132651Z"
+        },
+        {
+            "id": 9,
+            "question_type": "theory",
+            "question_id": 39,
+            "user_response": "The `using` statement in C# is used to ensure that an object implementing the `IDisposable` interface is automatically disposed of when it's no longer needed. It helps in resource management by guaranteeing that the `Dispose()` method is called, releasing unmanaged resources like file handles, database connections, or network streams as soon as they go out of scope—either normally or due to an exception. This prevents resource leaks and promotes clean, efficient code without requiring manual cleanup in `try...finally` blocks.",
+            "is_correct": true,
+            "created_at": "2025-05-03T21:42:32.132651Z"
+        },
+        {
+            "id": 10,
+            "question_type": "theory",
+            "question_id": 40,
+            "user_response": "The using statement in C# ensures automatic disposal of objects that implement IDisposable, guaranteeing deterministic cleanup of unmanaged resources (e.g., file handles, database connections). It simplifies resource management by calling Dispose() implicitly when exiting the block, even during exceptions, avoiding leaks. Variables declared in a using block are scoped to it, preventing misuse afterward. Available as a concise statement (C# 8.0+) or traditional block syntax, it streamlines code while enforcing safe, efficient resource handling.",
+            "is_correct": true,
+            "created_at": "2025-05-03T21:42:32.132651Z"
+        }
+    ]
+}
+```
 #### Delete Expertise Level
 - **Endpoint:** `DELETE /api/expertise-levels/{id}/`
 - **Description:** Delete a specific expertise level by ID.
