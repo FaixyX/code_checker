@@ -1,8 +1,11 @@
 import os
+from dotenv import load_dotenv
 import django
 from django.contrib.auth import get_user_model
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'project.settings') # Replace 'project.settings' with your actual settings module
+load_dotenv()  # Load environment variables from .env file
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'project.settings')
+
 django.setup()
 
 User = get_user_model()
@@ -14,4 +17,4 @@ if not User.objects.filter(email=email).exists():
     print(f'Creating superuser with email {email}')
     User.objects.create_superuser(email=email, password=password)
 else:
-    print(f'Superuser with email {email} already exists.') 
+    print(f'Superuser with email {email} already exists.')

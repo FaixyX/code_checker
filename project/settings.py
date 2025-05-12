@@ -17,7 +17,7 @@ SECRET_KEY = env("SECRET_KEY")
 DEBUG = bool(env("DEBUG", 1))
 
 
-ALLOWED_HOSTS = env("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
+ALLOWED_HOSTS = env("ALLOWED_HOSTS", "127.0.0.1,localhost,67.217.242.65").split(",")
 
 
 REST_FRAMEWORK = {
@@ -60,7 +60,8 @@ MIDDLEWARE = [
 ]
 
 
-CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS", "http://127.0.0.1:8000").split(",")
+#CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS", "http://127.0.0.1:8000").split(",")
+CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS", "http://127.0.0.1:8000,http://67.217.242.65:8000").split(",")
 
 
 ROOT_URLCONF = 'project.urls'
