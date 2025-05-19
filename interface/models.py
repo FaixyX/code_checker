@@ -3,6 +3,7 @@ from authemail.models import EmailUserManager, EmailAbstractUser
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.utils.translation import gettext_lazy as _
 from django.contrib.postgres.fields import ArrayField
+from pgvector.django import VectorField
 
 class MyUser(EmailAbstractUser):
 	# Custom fields example
@@ -149,11 +150,7 @@ class QuestionEmbedding(models.Model):
 	
 	question_id = models.IntegerField()
 	question_type = models.CharField(max_length=10, choices=QUESTION_TYPE_CHOICES)
-	embedding = ArrayField(
-		models.FloatField(), 
-		size=1536,  # Size for OpenAI's text-embedding-ada-002 model
-		null=True
-	)
+	embedding = VectorField(dimensions=1536, null=True)
 	created_at = models.DateTimeField(auto_now_add=True)
 	
 	class Meta:
@@ -161,6 +158,7 @@ class QuestionEmbedding(models.Model):
 		indexes = [
 			models.Index(fields=['question_type']),
 		]
+		db_table = 'question_embeddings'
 	
 	def __str__(self):
 		return f"{self.question_type} Embedding for Question #{self.question_id}"
