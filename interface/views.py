@@ -9,7 +9,7 @@ from rest_framework.generics import RetrieveUpdateAPIView, ListCreateAPIView, Re
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import MyUser, ProgrammingLanguage, ExpertiseLevel, QuizQuestion, TestCase, UserProgress, UserSubmission, MCQQuestion, TheoryQuestion, Quiz, QuizQuestionResponse, Assignment, AssignmentResponse
-from .serializers import UserProfileUpdateSerializer, UserProfileRetrieveSerializer, ProgrammingLanguageSerializer, ExpertiseLevelSerializer, QuizQuestionSerializer, TheoryQuestionSerializer, AssignmentSerializer, AssignmentResponseSerializer
+from .serializers import CustomUserSignupSerializer, UserProfileUpdateSerializer, UserProfileRetrieveSerializer, ProgrammingLanguageSerializer, ExpertiseLevelSerializer, QuizQuestionSerializer, TheoryQuestionSerializer, AssignmentSerializer, AssignmentResponseSerializer
 from rest_framework.decorators import api_view, permission_classes
 import openai
 import subprocess
@@ -30,6 +30,25 @@ from .generation_utils import generate_coding_question, generate_theory_question
 import logging
 
 logger = logging.getLogger(__name__)
+
+class CustomSignupView(APIView):
+    permission_classes = [] # Allow any user (guest) to access this endpoint
+
+    def post(self, request, *args, **kwargs):
+        serializer = CustomUserSignupSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
+            # Return user data (excluding password) upon successful creation
+            return Response({
+                "message": "User registered successfully.",
+                "user_id": user.id,
+                "email": user.email,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "is_verified": user.is_verified,
+                "is_active": user.is_active
+            }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class GoogleLoginView(APIView):
     def get(self, request):

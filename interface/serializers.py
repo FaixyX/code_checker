@@ -62,3 +62,33 @@ class AssignmentSerializer(serializers.ModelSerializer):
             'responses' # Include the nested responses
         ]
         read_only_fields = ['created_at', 'completed_at', 'score', 'total_questions', 'responses']
+
+
+class CustomUserSignupSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=True, style={'input_type': 'password'})
+    first_name = serializers.CharField(required=True)
+    last_name = serializers.CharField(required=True)
+    email = serializers.EmailField(required=True)
+
+    class Meta:
+        model = MyUser
+        fields = ('email', 'password', 'first_name', 'last_name')
+
+    def validate_email(self, value):
+        """Check if the email already exists."""
+        if MyUser.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("User with this email already exists.")
+        return value
+
+    def create(self, validated_data):
+        user = MyUser.objects.create_user(
+            email=validated_data['email'],
+            password=validated_data['password'],
+            first_name=validated_data['first_name'],
+            last_name=validated_data['last_name']
+            # is_active is set to True by default by authemail's _create_user
+            # is_verified will be False by default from authemail's create_user
+        )
+        user.is_verified = True
+        user.save(update_fields=['is_verified'])
+        return user
