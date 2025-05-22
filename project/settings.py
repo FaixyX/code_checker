@@ -11,13 +11,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env("SECRET_KEY")
+SERVER_IP = env("SERVER_IP")
+SERVER_URL = env("SERVER_URL")
 
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = bool(env("DEBUG", 1))
 
 
-ALLOWED_HOSTS = env("ALLOWED_HOSTS", f"127.0.0.1,localhost").split(",")
+ALLOWED_HOSTS = env("ALLOWED_HOSTS", f"127.0.0.1,localhost,{SERVER_IP}").split(",")
 
 
 REST_FRAMEWORK = {
@@ -60,7 +62,7 @@ MIDDLEWARE = [
 ]
 
 
-CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS", f"http://127.0.0.1:8000").split(",")
+CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS", f"http://127.0.0.1:8000,{SERVER_URL}:8000").split(",")
 
 
 ROOT_URLCONF = 'project.urls'
