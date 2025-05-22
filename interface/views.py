@@ -135,6 +135,14 @@ class ProgrammingLanguageListCreateView(ListCreateAPIView):
     def get_permissions(self):
         # Remove authorization requirement for POST requests
         return []  # Allow all users to access this view
+    
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        response.data = {
+            'message': 'Programming language created successfully',
+            'data': response.data
+        }
+        return response
 
 
 class ProgrammingLanguageDetailView(RetrieveUpdateDestroyAPIView):
@@ -144,6 +152,20 @@ class ProgrammingLanguageDetailView(RetrieveUpdateDestroyAPIView):
     def get_permissions(self):
         # Remove authorization requirement for PUT, PATCH, DELETE requests
         return []  # Allow all users to access this view
+    
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        response.data = {
+            'message': 'Programming language updated successfully',
+            'data': response.data
+        }
+        return response
+    
+    def destroy(self, request, *args, **kwargs):
+        response = super().destroy(request, *args, **kwargs)
+        return Response({
+            'message': 'Programming language deleted successfully'
+        }, status=status.HTTP_200_OK)
 
 
 # Expertise Level CRUD APIs
@@ -154,6 +176,14 @@ class ExpertiseLevelListCreateView(ListCreateAPIView):
     def get_permissions(self):
         # Remove authorization requirement for POST requests
         return []  # Allow all users to access this view
+    
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        response.data = {
+            'message': 'Expertise level created successfully',
+            'data': response.data
+        }
+        return response
 
 
 class ExpertiseLevelDetailView(RetrieveUpdateDestroyAPIView):
@@ -163,6 +193,20 @@ class ExpertiseLevelDetailView(RetrieveUpdateDestroyAPIView):
     def get_permissions(self):
         # Remove authorization requirement for PUT, PATCH, DELETE requests
         return []  # Allow all users to access this view
+    
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        response.data = {
+            'message': 'Expertise level updated successfully',
+            'data': response.data
+        }
+        return response
+    
+    def destroy(self, request, *args, **kwargs):
+        response = super().destroy(request, *args, **kwargs)
+        return Response({
+            'message': 'Expertise level deleted successfully'
+        }, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
