@@ -344,57 +344,8 @@ def submit_answer(request):
     print(f"Start time: {start_time}")
     time_taken = (end_time - start_time).total_seconds()
     print(f"Time taken: {time_taken}")
-    
-    # Check for test cases
-    test_cases = TestCase.objects.filter(question=question)
-    
-    # If no test cases exist, try to create them from the question content
-    if not test_cases.exists():
-        try:
-            # Extract sample input and expected output using regex
-            sample_input_match = re.search(r'Sample Input:\s*(.+?)(?=Expected Output:|$)', question.question_text, re.DOTALL)
-            expected_output_match = re.search(r'Expected Output:\s*(.+?)(?=Explanation:|$)', question.question_text, re.DOTALL)
-            
-            if sample_input_match and expected_output_match:
-                sample_input = sample_input_match.group(1).strip()
-                expected_output = expected_output_match.group(1).strip()
-                
-                # Create a test case with the sample data
-                TestCase.objects.create(
-                    question=question,
-                    input_data=sample_input,
-                    expected_output=expected_output
-                )
-                print(f"Created test case for question {question.id}")
-                # Refresh the test cases queryset
-                test_cases = TestCase.objects.filter(question=question)
-        except Exception as test_case_error:
-            print(f"Error creating test case during submission: {test_case_error}")
-    
-    # Run code against test cases
-    all_passed = True
-    failed_cases = []
-    
-    if test_cases.exists():
-        for test_case in test_cases:
-            try:
-                if not run_code(code, test_case.input_data, test_case.expected_output, language):
-                    all_passed = False
-                    failed_cases.append({
-                        'input': test_case.input_data,
-                        'expected_output': test_case.expected_output
-                    })
-            except Exception as e:
-                print(f"Error running test case: {e}")
-                all_passed = False
-                failed_cases.append({
-                    'input': test_case.input_data,
-                    'expected_output': test_case.expected_output,
-                    'error': str(e)
-                })
-    else:
-        print("No test cases available for this question")
-    # If no test cases, we'll rely entirely on the LLM verification
+
+
 
     # Define headers for LLM Verification
     api_key = getattr(settings, 'OPENAI_API_KEY', None)
@@ -418,14 +369,8 @@ def submit_answer(request):
         f"You are an AI code checker responsible for evaluating the correctness of submitted code. Your task is to analyze the provided code snippet, determine if it correctly implements a solution to the given problem, and provide helpful feedback. Respond only with the JSON response.\n"
         f"### Problem Description:\n{problem_statement}\n\n"
         f"### Submitted Code ({language}):\n```\n{code}\n```\n\n"
-        f"### Test Case Results:\n"
-        f"- {'All test cases passed' if all_passed else 'Some test cases failed'}.\n"
-        f"- {'No test cases available.' if not test_cases.exists() else f'{len(failed_cases)} out of {test_cases.count()} test cases failed.'}\n"
-        f"- Failed test cases (if any): {json.dumps(failed_cases)}\n\n"
         f"### Instructions:\n"
         f"1. Determine if the code correctly solves the problem.\n"
-        f"2. If test cases are available, they should be the primary basis for your evaluation.\n"
-        f"3. If no test cases are available, evaluate the code's correctness based on your understanding of the problem.\n"
         f"4. Include brief, constructive feedback about the solution.\n\n"
         f"Respond with a JSON object in the following format:\n"
         f"```json\n"
@@ -474,7 +419,7 @@ def submit_answer(request):
                 is_correct = 'true' in verification_result.lower() and '"correct": true' in verification_result.lower()
                 feedback_match = re.search(r'"feedback":\s*"([^"]+)"', verification_result)
                 feedback = feedback_match.group(1) if feedback_match else "Feedback not available"
-                failed_test_cases = failed_cases
+                failed_test_cases = verification_json.get('failed_test_cases', [])
         else:
             print(f"OpenAI API Error: {response.status_code}, {response.text}")
             return Response({
@@ -1562,27 +1507,6 @@ def submit_quiz_answer(request, quiz_id):
             test_cases = TestCase.objects.filter(question=question)
             all_passed = True
             failed_cases = []
-            
-            if test_cases.exists():
-                for test_case in test_cases:
-                    try:
-                        if not run_code(data['code'], test_case.input_data, test_case.expected_output, data['language']):
-                            all_passed = False
-                            failed_cases.append({
-                                'input': test_case.input_data,
-                                'expected_output': test_case.expected_output
-                            })
-                    except Exception as e:
-                        print(f"Error running test case: {e}")
-                        all_passed = False
-                        failed_cases.append({
-                            'input': test_case.input_data,
-                            'expected_output': test_case.expected_output,
-                            'error': str(e)
-                        })
-            else:
-                print("No test cases available for this question")
-            # If no test cases, we'll rely entirely on the LLM verification
 
             # Verify with OpenAI
             api_key = getattr(settings, 'OPENAI_API_KEY', None)
@@ -1599,10 +1523,6 @@ def submit_quiz_answer(request, quiz_id):
                 f"You are an AI code checker responsible for evaluating the correctness of submitted code. Your task is to analyze the provided code snippet, determine if it correctly implements a solution to the given problem, and provide helpful feedback. Respond only with the JSON response.\n"
                 f"### Problem Description:\n{question.question_text}\n\n"
                 f"### Submitted Code ({data['language']}):\n```\n{data['code']}\n```\n\n"
-                f"### Test Case Results:\n"
-                f"- {'All test cases passed' if all_passed else 'Some test cases failed'}.\n"
-                f"- {'No test cases available.' if not test_cases.exists() else f'{len(failed_cases)} out of {test_cases.count()} test cases failed.'}\n"
-                f"- Failed test cases (if any): {json.dumps(failed_cases)}\n\n"
                 f"### Instructions:\n"
                 f"1. Determine if the code correctly solves the problem.\n"
                 f"2. If test cases are available, they should be the primary basis for your evaluation.\n"
@@ -1613,7 +1533,6 @@ def submit_quiz_answer(request, quiz_id):
                 f"{{\n"
                 f'  "correct": true/false,\n'
                 f'  "feedback": "Brief explanation of the evaluation result",\n'
-                f'  "failed_test_cases": [] // List of failed test cases if any\n'
                 f"}}\n"
                 f"```"
             )
@@ -2157,66 +2076,71 @@ class SubmitAssignmentView(APIView):
                                                             expertise_level=assignment.expertise_level)
                         language_name = assignment.programming_language.name.lower()
                         
-                        # --- Replicate evaluation logic from submit_quiz_answer --- 
-                        test_cases = TestCase.objects.filter(question=question)
-                        all_passed = True
-                        failed_cases = []
-                        # Run test cases
-                        if test_cases.exists():
-                            for test_case in test_cases:
-                                try:
-                                    if not run_code(user_response, test_case.input_data, test_case.expected_output, language_name):
-                                        all_passed = False
-                                        failed_cases.append({'input': test_case.input_data, 'expected': test_case.expected_output})
-                                except Exception as run_err:
-                                    all_passed = False
-                                    failed_cases.append({'input': test_case.input_data, 'expected': test_case.expected_output, 'error': str(run_err)})
-                        
                         # LLM Verification (only if API key exists)
                         if api_key:
-                            problem_statement_match = re.search(r'Question:\s*(.+?)(?=Sample Input:|$)', question.question_text, re.DOTALL)
+                            problem_statement_match = re.search(r'Question:\\s*(.+?)(?=Sample Input:|$)', question.question_text, re.DOTALL)
                             problem_statement = problem_statement_match.group(1).strip() if problem_statement_match else question.question_text
 
-                            prompt = (
-                                f"Evaluate correctness. Respond ONLY JSON: {{'correct': true/false, 'feedback': 'reason'}}\n"
-                                f"Problem: {problem_statement}\nCode ({language_name}):\n```\n{user_response}\n```\n"
-                                f"Test Results: {'Passed' if all_passed else 'Failed'} ({len(failed_cases)}/{test_cases.count()} failed). Failed: {json.dumps(failed_cases)}"
+                            llm_prompt = (
+                                f"You are an AI code checker responsible for evaluating the correctness of submitted code. Your task is to analyze the provided code snippet, determine if it correctly implements a solution to the given problem, and provide helpful feedback. Respond only with the JSON response.\\n"
+                                f"### Problem Description:\\n{problem_statement}\\n\\n"
+                                f"### Submitted Code ({language_name}):\\n```\\n{user_response}\\n```\\n\\n"
+                                f"### Instructions:\\n"
+                                f"1. Determine if the code correctly solves the problem based on the problem description and your understanding.\\n"
+                                f"2. Use the provided local test case results as a strong reference but not the sole factor if your analysis differs.\\n"
+                                f"3. Include brief, constructive feedback about the solution.\\n\\n"
+                                f"Respond with a JSON object in the following format:\\n"
+                                f"```json\\n"
+                                f"{{\\n"
+                                f'  "correct": true/false,\\n'
+                                f'  "feedback": "Brief explanation of the evaluation result (e.g., issues found, or confirmation of correctness).",\\n'
+                                f'  "failed_test_cases": [] // If you identify specific failing logical cases or test inputs based on your analysis, list them here briefly.\\n'
+                                f"}}\\n"
+                                f"```"
                             )
+
                             llm_data = {
-                                'model': 'gpt-4o-mini', 
-                                'messages': [{'role': 'user', 'content': prompt}],
-                                'temperature': 0, 'max_tokens': 500,
-                                'response_format': {"type": "json_object"} # Request JSON output
+                                'model': 'gpt-4o-mini',
+                                'messages': [
+                                    {'role': 'system', 'content': 'You are a code verification assistant that provides accurate and helpful feedback.'},
+                                    {'role': 'user', 'content': llm_prompt}
+                                ],
+                                'temperature': 0,
+                                'max_tokens': 1500, 
+                                'response_format': {"type": "json_object"}
                             }
                             
                             llm_response = requests.post('https://api.openai.com/v1/chat/completions', headers=headers, json=llm_data, timeout=30)
                             
                             if llm_response.status_code == 200:
                                 try:
-                                    llm_result = llm_response.json()['choices'][0]['message']['content']
-                                    verification_json = json.loads(llm_result)
+                                    llm_full_result_text = llm_response.json()['choices'][0]['message']['content'].strip()
+                                    clean_llm_result = re.sub(r'```json|```', '', llm_full_result_text).strip()
+                                    verification_json = json.loads(clean_llm_result)
+                                    
                                     is_correct = verification_json.get('correct', False)
-                                    feedback = verification_json.get('feedback', 'No feedback provided.')
+                                    feedback = verification_json.get('feedback', 'No feedback provided by LLM.')
                                 except (json.JSONDecodeError, KeyError, IndexError) as json_err:
                                     logger.error(f"Error parsing LLM JSON response for coding Q{question_id}: {json_err} - Response: {llm_response.text}")
-                                    is_correct = all_passed # Fallback to test cases
-                                    feedback = f"LLM response parsing error. Test cases {'passed' if all_passed else 'failed'}."
+                                    is_correct = False # Default to False if LLM response is problematic
+                                    feedback = f"Error parsing LLM response. Please review manually."
                             else:
                                 logger.error(f"LLM API error for coding Q{question_id}: {llm_response.status_code} - {llm_response.text}")
-                                is_correct = all_passed # Fallback to test cases
-                                feedback = f"LLM API error. Test cases {'passed' if all_passed else 'failed'}."
+                                is_correct = False # Default to False on API error
+                                feedback = f"LLM API error during evaluation."
                         else: # No API Key
-                            is_correct = all_passed
-                            feedback = f"Evaluation based on test cases only (LLM disabled). Test cases {'passed' if all_passed else 'failed'}."
-                        # --- End evaluation logic --- 
+                            is_correct = False # Cannot determine correctness without LLM
+                            feedback = f"LLM evaluation skipped: API key not configured."
 
                     except QuizQuestion.DoesNotExist:
                         feedback = "Coding question not found."
                         evaluation_errors.append(feedback)
+                        is_correct = False
                     except Exception as eval_err:
                         logger.error(f"Error evaluating coding Q{question_id} for assignment {assignment_id}: {eval_err}", exc_info=True)
                         feedback = f"Error during evaluation: {eval_err}"
                         evaluation_errors.append(feedback)
+                        is_correct = False
 
                 elif question_type == 'theory':
                     try:
@@ -2224,11 +2148,10 @@ class SubmitAssignmentView(APIView):
                                                                programming_language=assignment.programming_language,
                                                                expertise_level=assignment.expertise_level)
                         
-                        # LLM Verification (only if API key exists)
                         if api_key:
                             prompt = (
-                                f"Evaluate correctness. Respond ONLY JSON: {{'correct': true/false, 'feedback': 'reason'}}\n"
-                                f"Question: {question.question_text}\nAnswer: {user_response}"
+                                f"Evaluate correctness. Respond ONLY JSON: {{}}'correct': true/false, 'feedback': 'reason'{{}}\n"
+                                f"Question: {question.question_text}\\nAnswer: {user_response}"
                             )
                             llm_data = {
                                 'model': 'gpt-4o-mini', 
@@ -2241,49 +2164,57 @@ class SubmitAssignmentView(APIView):
                             
                             if llm_response.status_code == 200:
                                 try:
-                                    llm_result = llm_response.json()['choices'][0]['message']['content']
-                                    verification_json = json.loads(llm_result)
+                                    llm_full_result_text = llm_response.json()['choices'][0]['message']['content'].strip()
+                                    clean_llm_result = re.sub(r'```json|```', '', llm_full_result_text).strip()
+                                    verification_json = json.loads(clean_llm_result)
                                     is_correct = verification_json.get('correct', False)
-                                    feedback = verification_json.get('feedback', 'No feedback provided.')
+                                    feedback = verification_json.get('feedback', 'No feedback provided by LLM.')
                                 except (json.JSONDecodeError, KeyError, IndexError) as json_err:
                                     logger.error(f"Error parsing LLM JSON response for theory Q{question_id}: {json_err} - Response: {llm_response.text}")
-                                    feedback = "LLM response parsing error."
-                                    is_correct = False # Cannot determine correctness
+                                    feedback = "Error parsing LLM response for theory question."
+                                    is_correct = False
                             else:
                                 logger.error(f"LLM API error for theory Q{question_id}: {llm_response.status_code} - {llm_response.text}")
-                                feedback = "LLM API error during evaluation."
-                                is_correct = False # Cannot determine correctness
+                                feedback = "LLM API error during theory evaluation."
+                                is_correct = False
                         else: # No API Key
-                            feedback = "Cannot evaluate theory question without LLM API key."
-                            is_correct = False # Cannot determine correctness without LLM
+                            feedback = "LLM evaluation for theory question skipped: API key not configured."
+                            is_correct = False
                             evaluation_errors.append(f"Skipped theory Q{question_id} evaluation (no API key).")
                     
                     except TheoryQuestion.DoesNotExist:
                         feedback = "Theory question not found."
                         evaluation_errors.append(feedback)
+                        is_correct = False
                     except Exception as eval_err:
                         logger.error(f"Error evaluating theory Q{question_id} for assignment {assignment_id}: {eval_err}", exc_info=True)
-                        feedback = f"Error during evaluation: {eval_err}"
+                        feedback = f"Error during theory evaluation: {eval_err}"
                         evaluation_errors.append(feedback)
+                        is_correct = False
 
                 else:
                     feedback = f"Invalid question type '{question_type}' provided."
                     evaluation_errors.append(feedback)
-                    continue # Skip saving response for invalid type
+                    is_correct = False
+                    # For invalid type, we might not want to save an AssignmentResponse, 
+                    # or save it with an error flag. Current logic skips saving by `continue` earlier.
+                    # If it reaches here, it means `all([question_type, question_id, user_response is not None])` was true.
+                    # So, we should ensure `is_correct` is False and `feedback` indicates the problem.
             
-            except Exception as outer_eval_err: # Catch any unexpected errors in the loop
+            except Exception as outer_eval_err: 
                  logger.error(f"Unexpected error processing answer for Q{question_id} (type {question_type}) in assignment {assignment_id}: {outer_eval_err}", exc_info=True)
                  feedback = f"Unexpected error during processing: {outer_eval_err}"
                  evaluation_errors.append(feedback)
-                 # Continue to next answer
+                 is_correct = False
 
-            # Store the response result
+            # Store the response result, now including feedback
             assignment_responses.append(AssignmentResponse(
                 assignment=assignment,
                 question_type=question_type,
                 question_id=question_id,
                 user_response=user_response,
-                is_correct=is_correct
+                is_correct=is_correct,
+                feedback=feedback  # <-- Save feedback here
             ))
             if is_correct:
                 correct_count += 1
@@ -2329,7 +2260,7 @@ class SubmitAssignmentView(APIView):
             'question_id': resp.question_id,
             'question_type': resp.question_type,
             'is_correct': resp.is_correct,
-            # Add feedback here if we stored it per response (currently not)
+            'feedback': resp.feedback # <-- Include feedback in the response
         } for resp in assignment_responses]
 
         return Response({

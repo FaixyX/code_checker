@@ -201,6 +201,7 @@ class AssignmentResponse(models.Model):
 	question_id = models.IntegerField()  # ID of the question in its respective table (QuizQuestion or TheoryQuestion)
 	user_response = models.TextField(blank=True)  # User's answer or code
 	is_correct = models.BooleanField(default=False)
+	feedback = models.TextField(blank=True, default='') # <-- New field for LLM feedback
 	created_at = models.DateTimeField(auto_now_add=True)
 
 	class Meta:
