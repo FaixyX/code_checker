@@ -1879,16 +1879,31 @@ class GenerateAssignmentView(APIView):
 
 
         # 1. Get IDs of questions previously seen by the user for this language/level
-        seen_responses = QuizQuestionResponse.objects.filter(
+        # FROM QUIZZES
+        quiz_seen_responses = QuizQuestionResponse.objects.filter(
             quiz__user=user,
             quiz__programming_language=language,
             quiz__expertise_level=level
         ).values('question_type', 'question_id')
 
-        seen_coding_ids = {r['question_id'] for r in seen_responses if r['question_type'] == 'coding'}
-        seen_theory_ids = {r['question_id'] for r in seen_responses if r['question_type'] == 'theory'}
+        seen_coding_ids = {r['question_id'] for r in quiz_seen_responses if r['question_type'] == 'coding'}
+        seen_theory_ids = {r['question_id'] for r in quiz_seen_responses if r['question_type'] == 'theory'}
+
+        # --- ADD QUESTIONS SEEN IN PREVIOUS ASSIGNMENTS ---
+        assignment_seen_responses = AssignmentResponse.objects.filter(
+            assignment__user=user,
+            assignment__programming_language=language,
+            assignment__expertise_level=level
+        ).values('question_type', 'question_id')
+
+        for r in assignment_seen_responses:
+            if r['question_type'] == 'coding':
+                seen_coding_ids.add(r['question_id'])
+            elif r['question_type'] == 'theory':
+                seen_theory_ids.add(r['question_id'])
+        # --- END ADDITION ---
         
-        logger.info(f"User {user.id} has seen {len(seen_coding_ids)} coding and {len(seen_theory_ids)} theory questions for {language.name}/{level.level}.")
+        logger.info(f"User {user.id} has seen {len(seen_coding_ids)} coding and {len(seen_theory_ids)} theory questions (from quizzes and assignments) for {language.name}/{level.level}.")
 
         # 2. Fetch existing unseen questions from DB
         coding_questions_qs = QuizQuestion.objects.filter(
