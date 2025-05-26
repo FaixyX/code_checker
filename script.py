@@ -9,8 +9,6 @@ data = {
 response = requests.post(url, data=data)
 
 print(response.text)
-
-
 # a = 1;
 # b = 2;
 # c = a + b;
