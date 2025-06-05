@@ -9,7 +9,7 @@ from rest_framework.generics import RetrieveUpdateAPIView, ListCreateAPIView, Re
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import MyUser, ProgrammingLanguage, ExpertiseLevel, QuizQuestion, TestCase, UserProgress, UserSubmission, MCQQuestion, TheoryQuestion, Quiz, QuizQuestionResponse, Assignment, AssignmentResponse
-from .serializers import CustomUserSignupSerializer, UserProfileUpdateSerializer, UserProfileRetrieveSerializer, ProgrammingLanguageSerializer, ExpertiseLevelSerializer, QuizQuestionSerializer, TheoryQuestionSerializer, AssignmentSerializer, AssignmentResponseSerializer
+from .serializers import CustomUserSignupSerializer, UserProfileUpdateSerializer, UserProfileRetrieveSerializer, ProgrammingLanguageSerializer, ExpertiseLevelSerializer, QuizQuestionSerializer, TheoryQuestionSerializer, AssignmentSerializer, AssignmentResponseSerializer, ChangePasswordSerializer
 from rest_framework.decorators import api_view, permission_classes
 import openai
 import subprocess
@@ -125,6 +125,25 @@ class UserProfileUpdateView(RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+class ChangePasswordView(APIView):
+    permission_classes = [] # Allow any user to access this endpoint
+
+    def post(self, request, *args, **kwargs):
+        serializer = ChangePasswordSerializer(data=request.data)
+        if serializer.is_valid():
+            email = serializer.validated_data['email']
+            new_password = serializer.validated_data['new_password']
+
+            try:
+                user = MyUser.objects.get(email__iexact=email) # Case-insensitive email match
+            except MyUser.DoesNotExist:
+                return Response({"error": "User with this email does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
+            user.set_password(new_password)
+            user.save()
+            return Response({"message": "Password changed successfully."}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 # Programming Language CRUD APIs

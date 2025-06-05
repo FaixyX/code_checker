@@ -14,7 +14,7 @@ from .views import (UserProfileUpdateView, leaderboard, compare_user_progress,
                     ProgrammingLanguageListCreateView, ProgrammingLanguageDetailView,
                     ExpertiseLevelListCreateView, ExpertiseLevelDetailView,
                     GenerateAssignmentView, SubmitAssignmentView,
-                    AssignmentListView, MyAssignmentListView, AssignmentDetailView, CustomSignupView)
+                    AssignmentListView, MyAssignmentListView, AssignmentDetailView, CustomSignupView, ChangePasswordView)
 
 urlpatterns = [
     path("token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
@@ -30,6 +30,7 @@ urlpatterns = [
     path('social-auth/', RedirectView.as_view(url=reverse_lazy('social:begin', args=['google-oauth2'])), name='social-auth'),
     path('accounts/', include('authemail.urls')),
     path('update-profile/', UserProfileUpdateView.as_view()),
+    path('change-password/', views.ChangePasswordView.as_view(), name='change_password'),
     path('sign-up/', CustomSignupView.as_view()),
     
     # Programming Language and Expertise Level CRUD APIs

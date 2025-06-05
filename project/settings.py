@@ -62,7 +62,7 @@ MIDDLEWARE = [
 ]
 
 
-CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS", f"http://127.0.0.1:8000,{SERVER_URL}:8000").split(",")
+CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS", f"http://127.0.0.1:8000").split(",")
 
 
 ROOT_URLCONF = 'project.urls'

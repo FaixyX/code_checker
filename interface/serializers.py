@@ -92,3 +92,16 @@ class CustomUserSignupSerializer(serializers.ModelSerializer):
         user.is_verified = True
         user.save(update_fields=['is_verified'])
         return user
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True)
+    new_password = serializers.CharField(write_only=True, required=True, style={'input_type': 'password'})
+
+    def validate_email(self, value):
+        """
+        Check that the user with this email exists.
+        """
+        if not MyUser.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("User with this email does not exist.")
+        return value
